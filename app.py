@@ -122,14 +122,6 @@ def load_data():
     titanic['deck'] = cabin.str[0] if cabin.notna().any() else 'Unknown'
     titanic['has_cabin'] = cabin.notna().astype(int)
     
-    # Nueva feature: riesgo por edad y clase
-    titanic['risk_score'] = titanic['pclass'] * (titanic['age'] / 80 if 'age' in titanic.columns else 1)
-    
-    # Nueva feature: valor relativo pagado
-    if 'fare' in titanic.columns and 'pclass' in titanic.columns:
-        class_avg_fare = titanic.groupby('pclass')['fare'].transform('mean')
-        titanic['fare_ratio'] = titanic['fare'] / class_avg_fare
-    
     return titanic
 
 def create_sample_data():
@@ -154,6 +146,7 @@ def prepare_ml_data(df):
     """Preparar datos para machine learning"""
     df_ml = df.copy()
     
+    # Handle missing values
     if 'age' in df_ml.columns:
         df_ml['age'].fillna(df_ml['age'].median(), inplace=True)
     else:
@@ -170,6 +163,7 @@ def prepare_ml_data(df):
     else:
         df_ml['fare'] = 30
     
+    # Feature engineering for ML
     if 'title' in df_ml.columns:
         df_ml['title'] = df_ml['title'].replace(['Lady', 'Countess','Capt', 'Col', 'Don', 
                                                 'Dr', 'Major', 'Rev', 'Sir', 'Jonkheer', 'Dona'], 'Rare')
@@ -179,6 +173,7 @@ def prepare_ml_data(df):
     else:
         df_ml['title'] = 'Mr'
     
+    # Encode categorical variables
     le = LabelEncoder()
     categorical_cols = ['sex', 'embarked', 'title', 'deck']
     
@@ -190,9 +185,10 @@ def prepare_ml_data(df):
                 except:
                     df_ml[col] = pd.factorize(df_ml[col])[0]
     
+    # Select features for ML
     available_features = []
     possible_features = ['pclass', 'sex', 'age', 'sibsp', 'parch', 'fare', 'embarked', 
-                        'title', 'family_size', 'is_alone', 'has_cabin', 'deck', 'risk_score', 'fare_ratio']
+                        'title', 'family_size', 'is_alone', 'has_cabin', 'deck']
     
     for feature in possible_features:
         if feature in df_ml.columns:
@@ -349,7 +345,6 @@ if section == "📊 Overview & KPIs":
         """, unsafe_allow_html=True)
         
         # Organizar variables en columnas
-        vars_per_column = 7
         variables = list(VARIABLE_DICT.items())
         num_columns = 3
         
@@ -567,10 +562,6 @@ elif section == "💰 Análisis Socioeconómico":
                 st.plotly_chart(fig, use_container_width=True)
 
 # =============================================================================
-# LAS OTRAS SECCIONES SE MANTIENEN IGUAL PERO CON MÁS INSIGHTS
-# =============================================================================
-
-# =============================================================================
 # SECCIÓN 4: ANÁLISIS DE SUPERVIVENCIA
 # =============================================================================
 elif section == "🔍 Análisis de Supervivencia":
@@ -617,12 +608,16 @@ elif section == "🔍 Análisis de Supervivencia":
                 st.plotly_chart(fig, use_container_width=True)
 
 # =============================================================================
-# SECCIÓN 5: MACHINE LEARNING
+# SECCIÓN 5: MACHINE LEARNING (CORREGIDA)
 # =============================================================================
 elif section == "🤖 Machine Learning":
     st.markdown('<h2 class="section-header">🤖 Modelos de Machine Learning</h2>', unsafe_allow_html=True)
     
-    if len(X) > 0 and len(y) > 0:
+    # Verificar que tenemos datos suficientes
+    if len(X) == 0 or len(y) == 0:
+        st.error("❌ No hay suficientes datos para entrenar modelos de Machine Learning")
+        st.info("El dataset no contiene las variables necesarias para el modelado predictivo")
+    else:
         st.subheader("Configuración del Modelo")
         
         col1, col2 = st.columns(2)
@@ -636,107 +631,125 @@ elif section == "🤖 Machine Learning":
         with col2:
             test_size = st.slider("Tamaño del Conjunto de Test:", 0.1, 0.4, 0.2, 0.05)
         
-        # Entrenar modelo seleccionado
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size, random_state=42)
-        
-        # Escalar características
-        scaler = StandardScaler()
-        X_train_scaled = scaler.fit_transform(X_train)
-        X_test_scaled = scaler.transform(X_test)
-        
-        models = {
-            "Random Forest": RandomForestClassifier(n_estimators=100, random_state=42),
-            "Gradient Boosting": GradientBoostingClassifier(n_estimators=100, random_state=42),
-            "Logistic Regression": LogisticRegression(random_state=42),
-            "SVM": SVC(probability=True, random_state=42)
-        }
-        
-        model = models[model_choice]
-        
-        # Entrenar modelo
-        with st.spinner(f'Entrenando modelo {model_choice}...'):
-            if model_choice in ["Logistic Regression", "SVM"]:
-                model.fit(X_train_scaled, y_train)
-                y_pred = model.predict(X_test_scaled)
-                y_pred_proba = model.predict_proba(X_test_scaled)[:, 1] if hasattr(model, 'predict_proba') else None
-            else:
-                model.fit(X_train, y_train)
-                y_pred = model.predict(X_test)
-                y_pred_proba = model.predict_proba(X_test)[:, 1] if hasattr(model, 'predict_proba') else None
-        
-        accuracy = accuracy_score(y_test, y_pred)
-        
-        # Mostrar resultados
-        col3, col4 = st.columns(2)
-        
-        with col3:
-            st.metric("Accuracy del Modelo", f"{accuracy:.3f}")
+        try:
+            # Entrenar modelo seleccionado
+            X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size, random_state=42)
             
-            # Validación cruzada
-            with st.spinner('Realizando validación cruzada...'):
+            # Escalar características
+            scaler = StandardScaler()
+            X_train_scaled = scaler.fit_transform(X_train)
+            X_test_scaled = scaler.transform(X_test)
+            
+            models = {
+                "Random Forest": RandomForestClassifier(n_estimators=100, random_state=42),
+                "Gradient Boosting": GradientBoostingClassifier(n_estimators=100, random_state=42),
+                "Logistic Regression": LogisticRegression(random_state=42, max_iter=1000),
+                "SVM": SVC(probability=True, random_state=42)
+            }
+            
+            model = models[model_choice]
+            
+            # Entrenar modelo
+            with st.spinner(f'Entrenando modelo {model_choice}...'):
                 if model_choice in ["Logistic Regression", "SVM"]:
-                    cv_scores = cross_val_score(model, X_train_scaled, y_train, cv=5)
+                    model.fit(X_train_scaled, y_train)
+                    y_pred = model.predict(X_test_scaled)
+                    y_pred_proba = model.predict_proba(X_test_scaled)[:, 1] if hasattr(model, 'predict_proba') else None
                 else:
-                    cv_scores = cross_val_score(model, X_train, y_train, cv=5)
+                    model.fit(X_train, y_train)
+                    y_pred = model.predict(X_test)
+                    y_pred_proba = model.predict_proba(X_test)[:, 1] if hasattr(model, 'predict_proba') else None
             
-            st.metric("Accuracy Validación Cruzada", f"{cv_scores.mean():.3f} (±{cv_scores.std():.3f})")
-        
-        with col4:
-            # Matriz de confusión
-            cm = confusion_matrix(y_test, y_pred)
-            fig = px.imshow(cm, 
-                           labels=dict(x="Predicho", y="Real", color="Count"),
-                           x=['No Sobrevivió', 'Sobrevivió'],
-                           y=['No Sobrevivió', 'Sobrevivió'],
-                           title='Matriz de Confusión',
-                           color_continuous_scale='Blues',
-                           text_auto=True)
-            st.plotly_chart(fig, use_container_width=True)
-        
-        # Curva ROC si está disponible
-        if y_pred_proba is not None:
-            st.subheader("Curva ROC y Métricas")
+            accuracy = accuracy_score(y_test, y_pred)
             
-            col5, col6 = st.columns(2)
+            # Mostrar resultados
+            col3, col4 = st.columns(2)
             
-            with col5:
-                fpr, tpr, _ = roc_curve(y_test, y_pred_proba)
-                roc_auc = auc(fpr, tpr)
+            with col3:
+                st.metric("Accuracy del Modelo", f"{accuracy:.3f}")
                 
-                fig = go.Figure()
-                fig.add_trace(go.Scatter(x=fpr, y=tpr, name=f'ROC curve (AUC = {roc_auc:.3f})'))
-                fig.add_trace(go.Scatter(x=[0, 1], y=[0, 1], mode='lines', name='Random', line=dict(dash='dash')))
-                fig.update_layout(title='Curva ROC',
-                                 xaxis_title='False Positive Rate',
-                                 yaxis_title='True Positive Rate')
+                # Validación cruzada
+                with st.spinner('Realizando validación cruzada...'):
+                    if model_choice in ["Logistic Regression", "SVM"]:
+                        cv_scores = cross_val_score(model, X_train_scaled, y_train, cv=5, scoring='accuracy')
+                    else:
+                        cv_scores = cross_val_score(model, X_train, y_train, cv=5, scoring='accuracy')
+                
+                st.metric("Accuracy Validación Cruzada", f"{cv_scores.mean():.3f} (±{cv_scores.std():.3f})")
+            
+            with col4:
+                # Matriz de confusión
+                cm = confusion_matrix(y_test, y_pred)
+                fig = px.imshow(cm, 
+                               labels=dict(x="Predicho", y="Real", color="Count"),
+                               x=['No Sobrevivió', 'Sobrevivió'],
+                               y=['No Sobrevivió', 'Sobrevivió'],
+                               title='Matriz de Confusión',
+                               color_continuous_scale='Blues',
+                               text_auto=True)
                 st.plotly_chart(fig, use_container_width=True)
             
-            with col6:
-                # Importancia de características
-                if hasattr(model, 'feature_importances_'):
-                    feature_importance = pd.DataFrame({
-                        'feature': features,
-                        'importance': model.feature_importances_
-                    }).sort_values('importance', ascending=True)
+            # Curva ROC si está disponible
+            if y_pred_proba is not None:
+                st.subheader("Curva ROC y Métricas")
+                
+                col5, col6 = st.columns(2)
+                
+                with col5:
+                    fpr, tpr, _ = roc_curve(y_test, y_pred_proba)
+                    roc_auc = auc(fpr, tpr)
                     
-                    fig = px.bar(feature_importance, x='importance', y='feature',
-                                title='Importancia de Características',
-                                orientation='h')
+                    fig = go.Figure()
+                    fig.add_trace(go.Scatter(x=fpr, y=tpr, 
+                                           name=f'ROC curve (AUC = {roc_auc:.3f})',
+                                           line=dict(color='blue', width=2)))
+                    fig.add_trace(go.Scatter(x=[0, 1], y=[0, 1], 
+                                           mode='lines', 
+                                           name='Random', 
+                                           line=dict(dash='dash', color='red')))
+                    fig.update_layout(title='Curva ROC',
+                                     xaxis_title='False Positive Rate',
+                                     yaxis_title='True Positive Rate')
                     st.plotly_chart(fig, use_container_width=True)
-                else:
-                    st.info("La importancia de características no está disponible para este modelo")
-        
-        # Reporte de clasificación
-        st.subheader("Reporte de Clasificación Detallado")
-        report = classification_report(y_test, y_pred, output_dict=True)
-        report_df = pd.DataFrame(report).transpose()
-        st.dataframe(report_df.style.background_gradient(cmap='Blues'), use_container_width=True)
-    
-    else:
-        st.error("No hay suficientes datos para entrenar modelos de Machine Learning")
+                
+                with col6:
+                    # Importancia de características
+                    if hasattr(model, 'feature_importances_'):
+                        feature_importance = pd.DataFrame({
+                            'feature': features,
+                            'importance': model.feature_importances_
+                        }).sort_values('importance', ascending=True)
+                        
+                        fig = px.bar(feature_importance, x='importance', y='feature',
+                                    title='Importancia de Características',
+                                    orientation='h',
+                                    color='importance',
+                                    color_continuous_scale='Viridis')
+                        st.plotly_chart(fig, use_container_width=True)
+                    else:
+                        st.info("ℹ️ La importancia de características no está disponible para este modelo")
+            
+            # Reporte de clasificación
+            st.subheader("📊 Reporte de Clasificación Detallado")
+            report = classification_report(y_test, y_pred, output_dict=True)
+            report_df = pd.DataFrame(report).transpose()
+            
+            # Formatear el reporte para mejor visualización
+            styled_report = report_df.style.format({
+                'precision': '{:.3f}',
+                'recall': '{:.3f}',
+                'f1-score': '{:.3f}',
+                'support': '{:.0f}'
+            }).background_gradient(cmap='Blues', subset=['precision', 'recall', 'f1-score'])
+            
+            st.dataframe(styled_report, use_container_width=True)
+            
+        except Exception as e:
+            st.error(f"❌ Error al entrenar el modelo: {str(e)}")
+            st.info("💡 Intente con un modelo diferente o ajuste los parámetros")
 
 # =============================================================================
-# SECCIÓN 6: CLUSTERING & SEGMENTACIÓN
+# SECCIÓN 6: CLUSTERING & SEGMENTACIÓN (CORREGIDA)
 # =============================================================================
 elif section == "📈 Clustering & Segmentación":
     st.markdown('<h2 class="section-header">📈 Segmentación de Pasajeros con Clustering</h2>', unsafe_allow_html=True)
@@ -745,70 +758,140 @@ elif section == "📈 Clustering & Segmentación":
     clustering_features = ['age', 'fare', 'pclass']
     available_clustering_features = [f for f in clustering_features if f in titanic.columns]
     
-    if len(available_clustering_features) >= 2:
+    if len(available_clustering_features) < 2:
+        st.error("❌ No hay suficientes características numéricas para realizar clustering")
+        st.info("Se necesitan al menos 2 características numéricas (edad, tarifa, clase)")
+    else:
+        st.info(f"🔍 Utilizando características: {', '.join(available_clustering_features)}")
+        
         clustering_data = titanic[available_clustering_features].copy()
+        
+        # Manejar valores faltantes
         clustering_data = clustering_data.fillna(clustering_data.median())
         
-        # Normalizar datos
-        scaler = StandardScaler()
-        clustering_scaled = scaler.fit_transform(clustering_data)
-        
-        # Determinar número óptimo de clusters
-        st.subheader("Determinación del Número Óptimo de Clusters")
-        
-        inertia = []
-        k_range = range(1, 11)
-        
-        for k in k_range:
-            kmeans = KMeans(n_clusters=k, random_state=42)
-            kmeans.fit(clustering_scaled)
-            inertia.append(kmeans.inertia_)
-        
-        fig = px.line(x=list(k_range), y=inertia, 
-                     title='Método del Codo para Determinar K Óptimo',
-                     labels={'x': 'Número de Clusters', 'y': 'Inercia'})
-        fig.update_traces(mode='lines+markers')
-        st.plotly_chart(fig, use_container_width=True)
-        
-        # Aplicar K-means con k óptimo
-        optimal_k = st.slider("Seleccionar número de clusters:", 2, 6, 3)
-        
-        kmeans = KMeans(n_clusters=optimal_k, random_state=42)
-        clusters = kmeans.fit_predict(clustering_scaled)
-        
-        clustering_data['cluster'] = clusters
-        if 'survived' in titanic.columns:
-            clustering_data['survived'] = titanic['survived'].values
-        
-        # Visualización de clusters
-        st.subheader("Visualización de Clusters")
-        
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            if 'age' in clustering_data.columns and 'fare' in clustering_data.columns:
-                fig = px.scatter(clustering_data, x='age', y='fare', color='cluster',
-                                title='Clusters: Edad vs Tarifa',
-                                color_continuous_scale='Viridis')
+        # Verificar que tenemos datos después de la limpieza
+        if len(clustering_data) < 10:
+            st.error("❌ No hay suficientes datos después de la limpieza para realizar clustering")
+        else:
+            # Normalizar datos
+            scaler = StandardScaler()
+            clustering_scaled = scaler.fit_transform(clustering_data)
+            
+            # Determinar número óptimo de clusters
+            st.subheader("📊 Determinación del Número Óptimo de Clusters")
+            
+            try:
+                inertia = []
+                k_range = range(1, 11)
+                
+                for k in k_range:
+                    kmeans = KMeans(n_clusters=k, random_state=42, n_init=10)
+                    kmeans.fit(clustering_scaled)
+                    inertia.append(kmeans.inertia_)
+                
+                fig = px.line(x=list(k_range), y=inertia, 
+                             title='Método del Codo para Determinar K Óptimo',
+                             labels={'x': 'Número de Clusters', 'y': 'Inercia'},
+                             markers=True)
+                fig.update_traces(line=dict(color='red', width=2))
                 st.plotly_chart(fig, use_container_width=True)
-        
-        with col2:
-            if 'survived' in clustering_data.columns:
-                cluster_survival = clustering_data.groupby('cluster')['survived'].mean().reset_index()
-                fig = px.bar(cluster_survival, x='cluster', y='survived',
-                            title='Tasa de Supervivencia por Cluster',
-                            color='survived',
-                            color_continuous_scale='RdYlBu')
-                st.plotly_chart(fig, use_container_width=True)
-        
-        # Análisis de perfiles de clusters
-        st.subheader("📊 Perfiles de Clusters")
-        
-        cluster_profiles = clustering_data.groupby('cluster').mean().round(2)
-        st.dataframe(cluster_profiles.style.background_gradient(cmap='YlOrBr'), use_container_width=True)
-    
-    else:
-        st.error("No hay suficientes características para realizar clustering")
+                
+                # Aplicar K-means con k óptimo
+                st.subheader("🎯 Aplicación de Clustering")
+                optimal_k = st.slider("Seleccionar número de clusters:", 2, 6, 3)
+                
+                kmeans = KMeans(n_clusters=optimal_k, random_state=42, n_init=10)
+                clusters = kmeans.fit_predict(clustering_scaled)
+                
+                clustering_data['cluster'] = clusters
+                if 'survived' in titanic.columns:
+                    clustering_data['survived'] = titanic['survived'].values
+                
+                # Visualización de clusters
+                st.subheader("👁️ Visualización de Clusters")
+                
+                if len(available_clustering_features) >= 2:
+                    col1, col2 = st.columns(2)
+                    
+                    with col1:
+                        # Scatter plot de los dos primeros features
+                        fig = px.scatter(clustering_data, 
+                                        x=available_clustering_features[0], 
+                                        y=available_clustering_features[1],
+                                        color='cluster',
+                                        title=f'Clusters: {available_clustering_features[0]} vs {available_clustering_features[1]}',
+                                        color_continuous_scale='Viridis',
+                                        hover_data=available_clustering_features)
+                        st.plotly_chart(fig, use_container_width=True)
+                    
+                    with col2:
+                        if 'survived' in clustering_data.columns:
+                            cluster_survival = clustering_data.groupby('cluster')['survived'].mean().reset_index()
+                            fig = px.bar(cluster_survival, x='cluster', y='survived',
+                                        title='Tasa de Supervivencia por Cluster',
+                                        color='survived',
+                                        color_continuous_scale='RdYlBu',
+                                        labels={'survived': 'Tasa de Supervivencia'})
+                            st.plotly_chart(fig, use_container_width=True)
+                        else:
+                            # Mostrar distribución de clusters si no hay supervivencia
+                            cluster_counts = clustering_data['cluster'].value_counts().sort_index()
+                            fig = px.pie(values=cluster_counts.values, names=[f'Cluster {i}' for i in cluster_counts.index],
+                                        title='Distribución de Pasajeros por Cluster')
+                            st.plotly_chart(fig, use_container_width=True)
+                
+                # Análisis de perfiles de clusters
+                st.subheader("📋 Perfiles de Clusters")
+                
+                # Calcular estadísticas por cluster
+                cluster_profiles = clustering_data.groupby('cluster').agg({
+                    'age': ['mean', 'std', 'count'] if 'age' in clustering_data.columns else None,
+                    'fare': ['mean', 'std'] if 'fare' in clustering_data.columns else None,
+                    'pclass': ['mean'] if 'pclass' in clustering_data.columns else None,
+                    'survived': ['mean'] if 'survived' in clustering_data.columns else None
+                }).round(2)
+                
+                # Limpiar el DataFrame multiindex
+                cluster_profiles.columns = ['_'.join(col).strip() for col in cluster_profiles.columns.values]
+                st.dataframe(cluster_profiles.style.background_gradient(cmap='YlOrBr'), use_container_width=True)
+                
+                # Interpretación de clusters
+                st.subheader("🎯 Interpretación de Segmentos")
+                
+                for cluster in range(optimal_k):
+                    with st.expander(f"📊 Perfil del Cluster {cluster}"):
+                        cluster_data = clustering_data[clustering_data['cluster'] == cluster]
+                        
+                        st.write(f"**Tamaño del cluster:** {len(cluster_data)} pasajeros ({len(cluster_data)/len(clustering_data)*100:.1f}%)")
+                        
+                        if 'age' in cluster_data.columns:
+                            st.write(f"**Edad promedio:** {cluster_data['age'].mean():.1f} años")
+                        
+                        if 'fare' in cluster_data.columns:
+                            st.write(f"**Tarifa promedio:** ${cluster_data['fare'].mean():.2f}")
+                        
+                        if 'pclass' in cluster_data.columns:
+                            st.write(f"**Clase social promedio:** {cluster_data['pclass'].mean():.1f}")
+                        
+                        if 'survived' in cluster_data.columns:
+                            survival_rate = cluster_data['survived'].mean() * 100
+                            st.write(f"**Tasa de supervivencia:** {survival_rate:.1f}%")
+                        
+                        # Descripción cualitativa
+                        if 'age' in cluster_data.columns and 'fare' in cluster_data.columns:
+                            avg_age = cluster_data['age'].mean()
+                            avg_fare = cluster_data['fare'].mean()
+                            
+                            if avg_age < 25 and avg_fare < 20:
+                                st.write("**Perfil:** Pasajeros jóvenes con tarifas económicas")
+                            elif avg_age > 40 and avg_fare > 50:
+                                st.write("**Perfil:** Pasajeros adultos con tarifas premium")
+                            else:
+                                st.write("**Perfil:** Pasajeros con características mixtas")
+                
+            except Exception as e:
+                st.error(f"❌ Error en el clustering: {str(e)}")
+                st.info("💡 Intente con diferentes características o número de clusters")
 
 # =============================================================================
 # SECCIÓN 7: INSIGHTS & RECOMENDACIONES (MEJORADA)
