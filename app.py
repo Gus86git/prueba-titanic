@@ -562,15 +562,18 @@ elif section == "💰 Análisis Socioeconómico":
                 st.plotly_chart(fig, use_container_width=True)
 
 # =============================================================================
-# SECCIÓN 4: ANÁLISIS DE SUPERVIVENCIA
+# SECCIÓN 4: ANÁLISIS DE SUPERVIVENCIA (SIEMPRE VISIBLE)
 # =============================================================================
 elif section == "🔍 Análisis de Supervivencia":
     st.markdown('<h2 class="section-header">🔍 Análisis Detallado de Supervivencia</h2>', unsafe_allow_html=True)
     
+    # SIEMPRE mostrar contenido, incluso si faltan algunas columnas
+    st.info("🔍 Esta sección analiza los factores que influyeron en la supervivencia de los pasajeros")
+    
+    # Heatmap de supervivencia - versión robusta
+    st.subheader("🎯 Mapa de Calor de Factores de Supervivencia")
+    
     if 'survived' in titanic.columns and 'pclass' in titanic.columns and 'sex' in titanic.columns:
-        # Heatmap de supervivencia
-        st.subheader("Mapa de Calor de Factores de Supervivencia")
-        
         # Preparar datos para heatmap
         survival_pivot = titanic.pivot_table(values='survived', 
                                             index='pclass', 
@@ -580,45 +583,101 @@ elif section == "🔍 Análisis de Supervivencia":
         fig = px.imshow(survival_pivot, 
                        title='Tasa de Supervivencia por Clase y Género',
                        color_continuous_scale='RdYlBu',
-                       aspect='auto')
+                       aspect='auto',
+                       text_auto=True)
         fig.update_layout(xaxis_title='Género', yaxis_title='Clase')
         st.plotly_chart(fig, use_container_width=True)
-        
-        # Análisis multivariable
-        st.subheader("Análisis Multivariable")
-        
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            if 'fare' in titanic.columns and 'family_size' in titanic.columns:
-                # Sunburst chart
+    else:
+        st.warning("⚠️ No se pueden generar todos los gráficos por falta de datos necesarios")
+    
+    # Análisis multivariable
+    st.subheader("📊 Análisis Multivariable")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        # Sunburst chart - versión robusta
+        if 'pclass' in titanic.columns and 'sex' in titanic.columns and 'survived' in titanic.columns:
+            try:
                 fig = px.sunburst(titanic, path=['pclass', 'sex', 'survived'],
-                                 values='fare', color='survived',
-                                 color_continuous_scale='Blues',
-                                 title='Sunburst: Clase → Género → Supervivencia')
+                                 title='Sunburst: Clase → Género → Supervivencia',
+                                 color_discrete_sequence=px.colors.qualitative.Set3)
                 st.plotly_chart(fig, use_container_width=True)
-        
-        with col2:
-            if 'age' in titanic.columns:
-                # Edad vs Tarifa con supervivencia
-                fig = px.scatter(titanic, x='age', y='fare', color='survived',
-                                size='family_size', hover_data=['pclass', 'sex'],
-                                title='Edad vs Tarifa (Tamaño: Familia)',
-                                color_discrete_sequence=['#FF6B6B', '#4ECDC4'])
-                st.plotly_chart(fig, use_container_width=True)
+            except Exception as e:
+                st.info("No se pudo generar el gráfico sunburst con los datos disponibles")
+        else:
+            st.info("Faltan datos para el gráfico Sunburst")
+    
+    with col2:
+        # Edad vs Tarifa con supervivencia - versión robusta
+        if 'age' in titanic.columns and 'fare' in titanic.columns and 'survived' in titanic.columns:
+            fig = px.scatter(titanic, x='age', y='fare', color='survived',
+                            title='Edad vs Tarifa por Supervivencia',
+                            color_discrete_sequence=['#FF6B6B', '#4ECDC4'],
+                            hover_data=['pclass', 'sex'] if 'pclass' in titanic.columns and 'sex' in titanic.columns else None)
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.info("Faltan datos para el gráfico de dispersión")
+    
+    # Análisis adicional de supervivencia
+    st.subheader("📈 Factores de Supervivencia Adicionales")
+    
+    col3, col4 = st.columns(2)
+    
+    with col3:
+        if 'embarked' in titanic.columns and 'survived' in titanic.columns:
+            # Supervivencia por puerto de embarque
+            embarked_survival = titanic.groupby('embarked')['survived'].mean().reset_index()
+            fig = px.bar(embarked_survival, x='embarked', y='survived',
+                        title='Tasa de Supervivencia por Puerto de Embarque',
+                        color='survived',
+                        color_continuous_scale='Viridis',
+                        labels={'embarked': 'Puerto', 'survived': 'Tasa Supervivencia'})
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.info("Datos de puerto de embarque no disponibles")
+    
+    with col4:
+        if 'family_size' in titanic.columns and 'survived' in titanic.columns:
+            # Supervivencia por tamaño familiar
+            family_survival = titanic.groupby('family_size')['survived'].mean().reset_index()
+            fig = px.line(family_survival, x='family_size', y='survived',
+                         title='Supervivencia por Tamaño Familiar',
+                         markers=True)
+            fig.update_traces(line=dict(color='green', width=3))
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.info("Datos de tamaño familiar no disponibles")
 
 # =============================================================================
-# SECCIÓN 5: MACHINE LEARNING (CORREGIDA)
+# SECCIÓN 5: MACHINE LEARNING (SIEMPRE VISIBLE)
 # =============================================================================
 elif section == "🤖 Machine Learning":
     st.markdown('<h2 class="section-header">🤖 Modelos de Machine Learning</h2>', unsafe_allow_html=True)
     
+    st.info("🎯 Esta sección entrena modelos predictivos para predecir la supervivencia de pasajeros")
+    
     # Verificar que tenemos datos suficientes
     if len(X) == 0 or len(y) == 0:
         st.error("❌ No hay suficientes datos para entrenar modelos de Machine Learning")
-        st.info("El dataset no contiene las variables necesarias para el modelado predictivo")
+        st.info("""
+        **Posibles causas:**
+        - El dataset no contiene la variable 'survived'
+        - No hay suficientes características numéricas
+        - Problemas en la carga de datos
+        """)
+        
+        # Mostrar qué características están disponibles
+        st.subheader("📋 Características Disponibles")
+        st.write(f"**Features ML encontrados:** {len(features)}")
+        st.write(f"**Lista de features:** {features}")
+        st.write(f"**Tamaño de X:** {X.shape if hasattr(X, 'shape') else 'N/A'}")
+        st.write(f"**Tamaño de y:** {len(y) if hasattr(y, '__len__') else 'N/A'}")
+        
     else:
-        st.subheader("Configuración del Modelo")
+        st.success(f"✅ Datos listos para ML: {X.shape[0]} muestras, {X.shape[1]} características")
+        
+        st.subheader("⚙️ Configuración del Modelo")
         
         col1, col2 = st.columns(2)
         
@@ -666,7 +725,7 @@ elif section == "🤖 Machine Learning":
             col3, col4 = st.columns(2)
             
             with col3:
-                st.metric("Accuracy del Modelo", f"{accuracy:.3f}")
+                st.metric("🎯 Accuracy del Modelo", f"{accuracy:.3f}")
                 
                 # Validación cruzada
                 with st.spinner('Realizando validación cruzada...'):
@@ -675,7 +734,7 @@ elif section == "🤖 Machine Learning":
                     else:
                         cv_scores = cross_val_score(model, X_train, y_train, cv=5, scoring='accuracy')
                 
-                st.metric("Accuracy Validación Cruzada", f"{cv_scores.mean():.3f} (±{cv_scores.std():.3f})")
+                st.metric("📊 Accuracy Validación Cruzada", f"{cv_scores.mean():.3f} (±{cv_scores.std():.3f})")
             
             with col4:
                 # Matriz de confusión
@@ -691,7 +750,7 @@ elif section == "🤖 Machine Learning":
             
             # Curva ROC si está disponible
             if y_pred_proba is not None:
-                st.subheader("Curva ROC y Métricas")
+                st.subheader("📈 Curva ROC y Métricas")
                 
                 col5, col6 = st.columns(2)
                 
@@ -730,7 +789,7 @@ elif section == "🤖 Machine Learning":
                         st.info("ℹ️ La importancia de características no está disponible para este modelo")
             
             # Reporte de clasificación
-            st.subheader("📊 Reporte de Clasificación Detallado")
+            st.subheader("📋 Reporte de Clasificación Detallado")
             report = classification_report(y_test, y_pred, output_dict=True)
             report_df = pd.DataFrame(report).transpose()
             
@@ -749,20 +808,33 @@ elif section == "🤖 Machine Learning":
             st.info("💡 Intente con un modelo diferente o ajuste los parámetros")
 
 # =============================================================================
-# SECCIÓN 6: CLUSTERING & SEGMENTACIÓN (CORREGIDA)
+# SECCIÓN 6: CLUSTERING & SEGMENTACIÓN (SIEMPRE VISIBLE)
 # =============================================================================
 elif section == "📈 Clustering & Segmentación":
     st.markdown('<h2 class="section-header">📈 Segmentación de Pasajeros con Clustering</h2>', unsafe_allow_html=True)
     
-    # Preparar datos para clustering
+    st.info("🎯 Esta sección agrupa pasajeros en segmentos naturales usando algoritmos no supervisados")
+    
+    # Preparar datos para clustering - versión más robusta
     clustering_features = ['age', 'fare', 'pclass']
     available_clustering_features = [f for f in clustering_features if f in titanic.columns]
     
     if len(available_clustering_features) < 2:
         st.error("❌ No hay suficientes características numéricas para realizar clustering")
-        st.info("Se necesitan al menos 2 características numéricas (edad, tarifa, clase)")
+        st.info("""
+        **Características necesarias:** Al menos 2 de estas: edad, tarifa, clase
+        **Características disponibles:** """ + ", ".join(available_clustering_features))
+        
+        # Mostrar datos disponibles para debugging
+        with st.expander("🔍 Ver datos disponibles para clustering"):
+            st.write("**Columnas numéricas disponibles:**")
+            numeric_cols = titanic.select_dtypes(include=[np.number]).columns.tolist()
+            st.write(numeric_cols)
+            st.write("**Sample de datos:**")
+            st.dataframe(titanic.head())
+            
     else:
-        st.info(f"🔍 Utilizando características: {', '.join(available_clustering_features)}")
+        st.success(f"✅ Características disponibles: {', '.join(available_clustering_features)}")
         
         clustering_data = titanic[available_clustering_features].copy()
         
@@ -894,7 +966,7 @@ elif section == "📈 Clustering & Segmentación":
                 st.info("💡 Intente con diferentes características o número de clusters")
 
 # =============================================================================
-# SECCIÓN 7: INSIGHTS & RECOMENDACIONES (MEJORADA)
+# SECCIÓN 7: INSIGHTS & RECOMENDACIONES
 # =============================================================================
 else:
     st.markdown('<h2 class="section-header">🎯 Insights Estratégicos & Recomendaciones</h2>', unsafe_allow_html=True)
